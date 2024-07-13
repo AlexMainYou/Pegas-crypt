@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog, ttk
+from tkinter import filedialog, messagebox, ttk
 import os
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import hashes
@@ -20,6 +20,47 @@ class HoverButton(tk.Button):
     def on_leave(self, e):
         self['background'] = self.defaultBackground
 
+class CustomPasswordDialog(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.result = None
+        self.create_widgets()
+
+    def create_widgets(self):
+        self.geometry("300x150")
+        self.configure(bg='black')
+        self.title("Введите пароль")
+
+        frame = tk.Frame(self, bg='black')
+        frame.pack(expand=True)
+
+        tk.Label(frame, text="Пароль:", bg='black', fg='#00ff00', font=("Courier", 12)).grid(row=0, column=0, padx=5, pady=20)
+        self.password_entry = tk.Entry(frame, show="*", bg='#003300', fg='#00ff00', insertbackground='#00ff00', font=("Courier", 12))
+        self.password_entry.grid(row=0, column=1, padx=5, pady=20)
+
+        button_frame = tk.Frame(self, bg='black')
+        button_frame.pack(pady=10)
+
+        ok_button = HoverButton(button_frame, text="OK", width=10, command=self.on_ok,
+                                bg="#003300", fg="#00ff00", activebackground="#004d00", activeforeground="#00ff00")
+        ok_button.pack(side=tk.LEFT, padx=5)
+
+        cancel_button = HoverButton(button_frame, text="Отмена", width=10, command=self.on_cancel,
+                                    bg="#003300", fg="#00ff00", activebackground="#004d00", activeforeground="#00ff00")
+        cancel_button.pack(side=tk.LEFT, padx=5)
+
+        self.bind("<Return>", lambda event: self.on_ok())
+        self.bind("<Escape>", lambda event: self.on_cancel())
+
+    def on_ok(self):
+        self.result = self.password_entry.get()
+        self.destroy()
+
+    def on_cancel(self):
+        self.result = None
+        self.destroy()
+
 class AdvancedEncryptionApp:
     def __init__(self, master):
         self.master = master
@@ -30,6 +71,9 @@ class AdvancedEncryptionApp:
         self.style = ttk.Style()
         self.style.theme_use('default')
         self.style.configure('TRadiobutton', background='black', foreground='#00ff00')
+        self.style.map('TRadiobutton',
+                       background=[('active', 'black')],
+                       indicatorcolor=[('selected', '#00ff00'), ('!selected', '#003300')])
 
         self.encrypt_button = HoverButton(master, text="Зашифровать файл", command=self.encrypt_file, 
                                           bg="#003300", fg="#00ff00", activebackground="#004d00", 
@@ -62,7 +106,9 @@ class AdvancedEncryptionApp:
             self.master.after(100, self.animate_text, widget, text, index+1)
 
     def get_password(self):
-        return simpledialog.askstring("Пароль", "Введите пароль:", show='*')
+        dialog = CustomPasswordDialog(self.master)
+        self.master.wait_window(dialog)
+        return dialog.result
 
     def derive_key(self, password, salt):
         kdf = PBKDF2HMAC(
@@ -137,7 +183,7 @@ class AdvancedEncryptionApp:
 
             plaintext = decryptor.update(ciphertext) + decryptor.finalize()
 
-            new_file_path = os.path.splitext(file_path)[0]
+            new_file_path = os.path.splitext(file_path)[0] + ".txt"
             with open(new_file_path, 'wb') as file:
                 file.write(plaintext)
 
