@@ -7,30 +7,59 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 import secrets
 
+class HoverButton(tk.Button):
+    def __init__(self, master, **kw):
+        tk.Button.__init__(self, master=master, **kw)
+        self.defaultBackground = self["background"]
+        self.bind("<Enter>", self.on_enter)
+        self.bind("<Leave>", self.on_leave)
+
+    def on_enter(self, e):
+        self['background'] = self['activebackground']
+
+    def on_leave(self, e):
+        self['background'] = self.defaultBackground
+
 class AdvancedEncryptionApp:
     def __init__(self, master):
         self.master = master
-        master.title("Продвинутое шифрование/дешифрование")
+        master.title("Шифрование")
         master.geometry("400x300")
         master.configure(bg='black')
 
-        self.encrypt_button = tk.Button(master, text="Зашифровать файл", command=self.encrypt_file, bg="green", fg="black")
-        self.encrypt_button.pack(pady=10)
+        self.style = ttk.Style()
+        self.style.theme_use('default')
+        self.style.configure('TRadiobutton', background='black', foreground='#00ff00')
 
-        self.decrypt_button = tk.Button(master, text="Расшифровать файл", command=self.decrypt_file, bg="green", fg="black")
-        self.decrypt_button.pack(pady=10)
+        self.encrypt_button = HoverButton(master, text="Зашифровать файл", command=self.encrypt_file, 
+                                          bg="#003300", fg="#00ff00", activebackground="#004d00", 
+                                          activeforeground="#00ff00", relief=tk.FLAT, bd=0)
+        self.encrypt_button.pack(pady=10, ipadx=10, ipady=5)
 
-        self.extension_label = tk.Label(master, text="Выберите расширение для шифрования:", fg="green", bg="black")
+        self.decrypt_button = HoverButton(master, text="Расшифровать файл", command=self.decrypt_file, 
+                                          bg="#003300", fg="#00ff00", activebackground="#004d00", 
+                                          activeforeground="#00ff00", relief=tk.FLAT, bd=0)
+        self.decrypt_button.pack(pady=10, ipadx=10, ipady=5)
+
+        self.extension_label = tk.Label(master, text="Выберите расширение для шифрования:", 
+                                        fg="#00ff00", bg="black", font=("Courier", 10))
         self.extension_label.pack(pady=5)
 
         self.extension_var = tk.StringVar(value=".ALX")
-        self.alx_radio = tk.Radiobutton(master, text=".ALX", variable=self.extension_var, value=".ALX", fg="green", bg="black")
+        self.alx_radio = ttk.Radiobutton(master, text=".ALX", variable=self.extension_var, value=".ALX")
         self.alx_radio.pack(side=tk.LEFT, padx=20)
-        self.pegas_radio = tk.Radiobutton(master, text=".Pegas", variable=self.extension_var, value=".Pegas", fg="green", bg="black")
+        self.pegas_radio = ttk.Radiobutton(master, text=".Pegas", variable=self.extension_var, value=".Pegas")
         self.pegas_radio.pack(side=tk.RIGHT, padx=20)
 
-        self.status_label = tk.Label(master, text="Готово", fg="green", bg="black")
+        self.status_label = tk.Label(master, text="Готово", fg="#00ff00", bg="black", font=("Courier", 10))
         self.status_label.pack(pady=10)
+
+        self.animate_text(self.status_label, "Готово к работе...", 0)
+
+    def animate_text(self, widget, text, index):
+        if index < len(text):
+            widget.config(text=text[:index+1])
+            self.master.after(100, self.animate_text, widget, text, index+1)
 
     def get_password(self):
         return simpledialog.askstring("Пароль", "Введите пароль:", show='*')
@@ -77,7 +106,7 @@ class AdvancedEncryptionApp:
                 file.write(encrypted_data)
 
             os.remove(file_path)
-            self.status_label.config(text=f"Файл успешно зашифрован с расширением {extension}")
+            self.animate_text(self.status_label, f"Файл зашифрован: {extension}", 0)
         except Exception as e:
             messagebox.showerror("Ошибка", str(e))
 
@@ -113,7 +142,7 @@ class AdvancedEncryptionApp:
                 file.write(plaintext)
 
             os.remove(file_path)
-            self.status_label.config(text="Файл успешно расшифрован")
+            self.animate_text(self.status_label, "Файл расшифрован", 0)
         except Exception as e:
             messagebox.showerror("Ошибка", "Расшифровка не удалась. Неверный пароль или поврежденный файл.")
 
