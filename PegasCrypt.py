@@ -1,28 +1,34 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog
+from tkinter import filedialog, messagebox, simpledialog, ttk
 import os
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
-import base64
 import secrets
 
 class AdvancedEncryptionApp:
     def __init__(self, master):
         self.master = master
         master.title("Advanced Encryption/Decryption")
-        master.geometry("400x250")
+        master.geometry("400x300")
         master.configure(bg='black')
 
         self.encrypt_button = tk.Button(master, text="Encrypt File", command=self.encrypt_file, bg="green", fg="black")
-        self.encrypt_button.pack(pady=20)
+        self.encrypt_button.pack(pady=10)
 
         self.decrypt_button = tk.Button(master, text="Decrypt File", command=self.decrypt_file, bg="green", fg="black")
-        self.decrypt_button.pack(pady=20)
+        self.decrypt_button.pack(pady=10)
+
+        self.extension_label = tk.Label(master, text="Choose encryption extension:", fg="green", bg="black")
+        self.extension_label.pack(pady=5)
+
+        self.extension_var = tk.StringVar(value=".ALX")
+        self.extension_combo = ttk.Combobox(master, textvariable=self.extension_var, values=[".ALX", ".Pegas"])
+        self.extension_combo.pack(pady=5)
 
         self.status_label = tk.Label(master, text="Ready", fg="green", bg="black")
-        self.status_label.pack(pady=20)
+        self.status_label.pack(pady=10)
 
     def get_password(self):
         return simpledialog.askstring("Password", "Enter password:", show='*')
@@ -63,17 +69,18 @@ class AdvancedEncryptionApp:
             
             encrypted_data = salt + iv + encryptor.tag + ciphertext
 
-            new_file_path = file_path + '.encrypted'
+            extension = self.extension_var.get()
+            new_file_path = file_path + extension
             with open(new_file_path, 'wb') as file:
                 file.write(encrypted_data)
 
             os.remove(file_path)
-            self.status_label.config(text="File encrypted successfully")
+            self.status_label.config(text=f"File encrypted successfully with {extension} extension")
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
     def decrypt_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Encrypted files", "*.encrypted")])
+        file_path = filedialog.askopenfilename(filetypes=[("Encrypted files", "*.ALX;*.Pegas")])
         if not file_path:
             return
 
