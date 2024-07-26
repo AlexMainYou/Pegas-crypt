@@ -1,197 +1,156 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
 import os
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+import webbrowser
+from threading import Timer
+from flask import Flask, render_template_string, request, jsonify
+from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
-import secrets
+import base64
 
-class HoverButton(tk.Button):
-    def __init__(self, master, **kw):
-        tk.Button.__init__(self, master=master, **kw)
-        self.defaultBackground = self["background"]
-        self.bind("<Enter>", self.on_enter)
-        self.bind("<Leave>", self.on_leave)
+app = Flask(__name__)
 
-    def on_enter(self, e):
-        self['background'] = self['activebackground']
+def get_key(password):
+    password = password.encode()
+    salt = b'salt_'  # В реальном приложении используйте случайную соль
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=default_backend()
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(password))
+    return key
 
-    def on_leave(self, e):
-        self['background'] = self.defaultBackground
+def encrypt(text, password):
+    key = get_key(password)
+    f = Fernet(key)
+    return f.encrypt(text.encode()).decode()
 
-class CustomPasswordDialog(tk.Toplevel):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-        self.result = None
-        self.create_widgets()
+def decrypt(text, password):
+    key = get_key(password)
+    f = Fernet(key)
+    return f.decrypt(text.encode()).decode()
 
-    def create_widgets(self):
-        self.geometry("300x150")
-        self.configure(bg='black')
-        self.title("Введите пароль")
+@app.route('/')
+def home():
+    return render_template_string(HTML_TEMPLATE)
 
-        frame = tk.Frame(self, bg='black')
-        frame.pack(expand=True)
+@app.route('/encrypt', methods=['POST'])
+def encrypt_route():
+    data = request.json
+    encrypted = encrypt(data['text'], data['password'])
+    return jsonify({'encrypted': encrypted})
 
-        tk.Label(frame, text="Пароль:", bg='black', fg='#00ff00', font=("Courier", 12)).grid(row=0, column=0, padx=5, pady=20)
-        self.password_entry = tk.Entry(frame, show="*", bg='#003300', fg='#00ff00', insertbackground='#00ff00', font=("Courier", 12))
-        self.password_entry.grid(row=0, column=1, padx=5, pady=20)
+@app.route('/decrypt', methods=['POST'])
+def decrypt_route():
+    data = request.json
+    try:
+        decrypted = decrypt(data['text'], data['password'])
+        return jsonify({'decrypted': decrypted})
+    except:
+        return jsonify({'error': 'Decryption failed. Check your password.'}), 400
 
-        button_frame = tk.Frame(self, bg='black')
-        button_frame.pack(pady=10)
+def open_browser():
+    webbrowser.open_new('http://localhost:9999/')
 
-        ok_button = HoverButton(button_frame, text="OK", width=10, command=self.on_ok,
-                                bg="#003300", fg="#00ff00", activebackground="#004d00", activeforeground="#00ff00")
-        ok_button.pack(side=tk.LEFT, padx=5)
+HTML_TEMPLATE = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Web App</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #000;
+            color: #0f0;
+            display: flex;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            display: flex;
+            width: 100%;
+        }
+        .crypto-section {
+            flex: 1;
+            padding: 20px;
+            border: 1px solid #0f0;
+            margin-right: 10px;
+        }
+        .preview-section {
+            flex: 1;
+            padding: 20px;
+            border: 1px solid #0f0;
+        }
+        input, textarea, button {
+            background-color: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 5px;
+            margin: 5px 0;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #0f0;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="crypto-section">
+            <h2>Crypto Operations</h2>
+            <textarea id="input" rows="10" placeholder="Enter text to encrypt/decrypt"></textarea>
+            <input type="password" id="password" placeholder="Enter password">
+            <button onclick="encrypt()">Encrypt</button>
+            <button onclick="decrypt()">Decrypt</button>
+            <textarea id="output" rows="10" readonly></textarea>
+        </div>
+        <div class="preview-section">
+            <h2>Preview</h2>
+            <div id="preview"></div>
+        </div>
+    </div>
+    <script>
+        async function encrypt() {
+            const text = document.getElementById('input').value;
+            const password = document.getElementById('password').value;
+            const response = await fetch('/encrypt', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text, password})
+            });
+            const data = await response.json();
+            document.getElementById('output').value = data.encrypted;
+        }
 
-        cancel_button = HoverButton(button_frame, text="Отмена", width=10, command=self.on_cancel,
-                                    bg="#003300", fg="#00ff00", activebackground="#004d00", activeforeground="#00ff00")
-        cancel_button.pack(side=tk.LEFT, padx=5)
+        async function decrypt() {
+            const text = document.getElementById('input').value;
+            const password = document.getElementById('password').value;
+            const response = await fetch('/decrypt', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text, password})
+            });
+            const data = await response.json();
+            if (data.error) {
+                alert(data.error);
+            } else {
+                document.getElementById('output').value = data.decrypted;
+                document.getElementById('preview').innerText = data.decrypted;
+            }
+        }
+    </script>
+</body>
+</html>
+'''
 
-        self.bind("<Return>", lambda event: self.on_ok())
-        self.bind("<Escape>", lambda event: self.on_cancel())
-
-    def on_ok(self):
-        self.result = self.password_entry.get()
-        self.destroy()
-
-    def on_cancel(self):
-        self.result = None
-        self.destroy()
-
-class AdvancedEncryptionApp:
-    def __init__(self, master):
-        self.master = master
-        master.title("Шифрование")
-        master.geometry("400x300")
-        master.configure(bg='black')
-
-        self.style = ttk.Style()
-        self.style.theme_use('default')
-        self.style.configure('TRadiobutton', background='black', foreground='#00ff00')
-        self.style.map('TRadiobutton',
-                       background=[('active', 'black')],
-                       indicatorcolor=[('selected', '#00ff00'), ('!selected', '#003300')])
-
-        self.encrypt_button = HoverButton(master, text="Зашифровать файл", command=self.encrypt_file, 
-                                          bg="#003300", fg="#00ff00", activebackground="#004d00", 
-                                          activeforeground="#00ff00", relief=tk.FLAT, bd=0)
-        self.encrypt_button.pack(pady=10, ipadx=10, ipady=5)
-
-        self.decrypt_button = HoverButton(master, text="Расшифровать файл", command=self.decrypt_file, 
-                                          bg="#003300", fg="#00ff00", activebackground="#004d00", 
-                                          activeforeground="#00ff00", relief=tk.FLAT, bd=0)
-        self.decrypt_button.pack(pady=10, ipadx=10, ipady=5)
-
-        self.extension_label = tk.Label(master, text="Выберите расширение для шифрования:", 
-                                        fg="#00ff00", bg="black", font=("Courier", 10))
-        self.extension_label.pack(pady=5)
-
-        self.extension_var = tk.StringVar(value=".ALX")
-        self.alx_radio = ttk.Radiobutton(master, text=".ALX", variable=self.extension_var, value=".ALX")
-        self.alx_radio.pack(side=tk.LEFT, padx=20)
-        self.pegas_radio = ttk.Radiobutton(master, text=".Pegas", variable=self.extension_var, value=".Pegas")
-        self.pegas_radio.pack(side=tk.RIGHT, padx=20)
-
-        self.status_label = tk.Label(master, text="Готово", fg="#00ff00", bg="black", font=("Courier", 10))
-        self.status_label.pack(pady=10)
-
-        self.animate_text(self.status_label, "Готово к работе...", 0)
-
-    def animate_text(self, widget, text, index):
-        if index < len(text):
-            widget.config(text=text[:index+1])
-            self.master.after(100, self.animate_text, widget, text, index+1)
-
-    def get_password(self):
-        dialog = CustomPasswordDialog(self.master)
-        self.master.wait_window(dialog)
-        return dialog.result
-
-    def derive_key(self, password, salt):
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=100000,
-            backend=default_backend()
-        )
-        return kdf.derive(password.encode())
-
-    def encrypt_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Все файлы", "*.*")])
-        if not file_path:
-            return
-
-        password = self.get_password()
-        if not password:
-            return
-
-        try:
-            with open(file_path, 'rb') as file:
-                plaintext = file.read()
-
-            salt = secrets.token_bytes(16)
-            key = self.derive_key(password, salt)
-            iv = secrets.token_bytes(12)
-            encryptor = Cipher(
-                algorithms.AES(key),
-                modes.GCM(iv),
-                backend=default_backend()
-            ).encryptor()
-
-            ciphertext = encryptor.update(plaintext) + encryptor.finalize()
-            
-            encrypted_data = salt + iv + encryptor.tag + ciphertext
-
-            extension = self.extension_var.get()
-            new_file_path = os.path.splitext(file_path)[0] + extension
-            with open(new_file_path, 'wb') as file:
-                file.write(encrypted_data)
-
-            os.remove(file_path)
-            self.animate_text(self.status_label, f"Файл зашифрован: {extension}", 0)
-        except Exception as e:
-            messagebox.showerror("Ошибка", str(e))
-
-    def decrypt_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Зашифрованные файлы", "*.ALX;*.Pegas")])
-        if not file_path:
-            return
-
-        password = self.get_password()
-        if not password:
-            return
-
-        try:
-            with open(file_path, 'rb') as file:
-                data = file.read()
-
-            salt = data[:16]
-            iv = data[16:28]
-            tag = data[28:44]
-            ciphertext = data[44:]
-
-            key = self.derive_key(password, salt)
-            decryptor = Cipher(
-                algorithms.AES(key),
-                modes.GCM(iv, tag),
-                backend=default_backend()
-            ).decryptor()
-
-            plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-
-            new_file_path = os.path.splitext(file_path)[0] + ".txt"
-            with open(new_file_path, 'wb') as file:
-                file.write(plaintext)
-
-            os.remove(file_path)
-            self.animate_text(self.status_label, "Файл расшифрован", 0)
-        except Exception as e:
-            messagebox.showerror("Ошибка", "Расшифровка не удалась. Неверный пароль или поврежденный файл.")
-
-root = tk.Tk()
-app = AdvancedEncryptionApp(root)
-root.mainloop()
+if __name__ == '__main__':
+    Timer(1, open_browser).start()
+    app.run(port=9999)
