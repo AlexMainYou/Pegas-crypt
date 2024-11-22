@@ -1,156 +1,166 @@
+import sys
 import os
-import webbrowser
-from threading import Timer
-from flask import Flask, render_template_string, request, jsonify
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
-import base64
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                            QLineEdit, QLabel, QPushButton)
+from PyQt6.QtCore import Qt, QMimeData
+from PyQt6.QtGui import QPalette, QColor, QDragEnterEvent, QDropEvent
+import random
 
-app = Flask(__name__)
-
-def get_key(password):
-    password = password.encode()
-    salt = b'salt_'  # В реальном приложении используйте случайную соль
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100000,
-        backend=default_backend()
-    )
-    key = base64.urlsafe_b64encode(kdf.derive(password))
-    return key
-
-def encrypt(text, password):
-    key = get_key(password)
-    f = Fernet(key)
-    return f.encrypt(text.encode()).decode()
-
-def decrypt(text, password):
-    key = get_key(password)
-    f = Fernet(key)
-    return f.decrypt(text.encode()).decode()
-
-@app.route('/')
-def home():
-    return render_template_string(HTML_TEMPLATE)
-
-@app.route('/encrypt', methods=['POST'])
-def encrypt_route():
-    data = request.json
-    encrypted = encrypt(data['text'], data['password'])
-    return jsonify({'encrypted': encrypted})
-
-@app.route('/decrypt', methods=['POST'])
-def decrypt_route():
-    data = request.json
-    try:
-        decrypted = decrypt(data['text'], data['password'])
-        return jsonify({'decrypted': decrypted})
-    except:
-        return jsonify({'error': 'Decryption failed. Check your password.'}), 400
-
-def open_browser():
-    webbrowser.open_new('http://localhost:9999/')
-
-HTML_TEMPLATE = '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crypto Web App</title>
-    <style>
-        body {
-            font-family: 'Courier New', monospace;
-            background-color: #000;
-            color: #0f0;
-            display: flex;
-            height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .container {
-            display: flex;
-            width: 100%;
-        }
-        .crypto-section {
-            flex: 1;
-            padding: 20px;
-            border: 1px solid #0f0;
-            margin-right: 10px;
-        }
-        .preview-section {
-            flex: 1;
-            padding: 20px;
-            border: 1px solid #0f0;
-        }
-        input, textarea, button {
-            background-color: #000;
-            color: #0f0;
-            border: 1px solid #0f0;
-            padding: 5px;
-            margin: 5px 0;
-            width: 100%;
-        }
-        button:hover {
-            background-color: #0f0;
-            color: #000;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="crypto-section">
-            <h2>Crypto Operations</h2>
-            <textarea id="input" rows="10" placeholder="Enter text to encrypt/decrypt"></textarea>
-            <input type="password" id="password" placeholder="Enter password">
-            <button onclick="encrypt()">Encrypt</button>
-            <button onclick="decrypt()">Decrypt</button>
-            <textarea id="output" rows="10" readonly></textarea>
-        </div>
-        <div class="preview-section">
-            <h2>Preview</h2>
-            <div id="preview"></div>
-        </div>
-    </div>
-    <script>
-        async function encrypt() {
-            const text = document.getElementById('input').value;
-            const password = document.getElementById('password').value;
-            const response = await fetch('/encrypt', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({text, password})
-            });
-            const data = await response.json();
-            document.getElementById('output').value = data.encrypted;
-        }
-
-        async function decrypt() {
-            const text = document.getElementById('input').value;
-            const password = document.getElementById('password').value;
-            const response = await fetch('/decrypt', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({text, password})
-            });
-            const data = await response.json();
-            if (data.error) {
-                alert(data.error);
-            } else {
-                document.getElementById('output').value = data.decrypted;
-                document.getElementById('preview').innerText = data.decrypted;
+class DropArea(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setAcceptDrops(True)
+        self.setMinimumSize(300, 200)
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1a1a1a;
+                border: 2px dashed #00ff00;
+                border-radius: 5px;
             }
-        }
-    </script>
-</body>
-</html>
-'''
+        """)
+        
+        layout = QVBoxLayout()
+        self.label = QLabel("Перетащите файл сюда")
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label.setStyleSheet("color: #00ff00; border: none;")
+        layout.addWidget(self.label)
+        self.setLayout(layout)
+
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent):
+        files = [url.toLocalFile() for url in event.mimeData().urls()]
+        if files:
+            self.process_file(files[0])
+
+    def process_file(self, file_path):
+        if file_path.endswith('.pegas'):
+            self.decrypt_file(file_path)
+        else:
+            self.encrypt_file(file_path)
+
+    def encrypt_file(self, file_path):
+        try:
+            seed = self.window().key_input.text()
+            if not seed:
+                self.label.setText("Введите ключ!")
+                return
+
+            random.seed(seed)
+            with open(file_path, 'rb') as f:
+                data = bytearray(f.read())
+
+            for i in range(len(data)):
+                data[i] ^= random.randint(0, 255)
+
+            new_path = file_path + '.pegas'
+            with open(new_path, 'wb') as f:
+                f.write(data)
+
+            os.remove(file_path)
+            self.label.setText("Файл зашифрован!")
+
+        except Exception as e:
+            self.label.setText(f"Ошибка: {str(e)}")
+
+    def decrypt_file(self, file_path):
+        try:
+            seed = self.window().key_input.text()
+            if not seed:
+                self.label.setText("Введите ключ!")
+                return
+
+            random.seed(seed)
+            with open(file_path, 'rb') as f:
+                data = bytearray(f.read())
+
+            for i in range(len(data)):
+                data[i] ^= random.randint(0, 255)
+
+            new_path = file_path[:-6]  # Remove .pegas
+            with open(new_path, 'wb') as f:
+                f.write(data)
+
+            os.remove(file_path)
+            self.label.setText("Файл расшифрован!")
+
+        except Exception as e:
+            self.label.setText(f"Ошибка: {str(e)}")
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PEGAS Encryptor")
+        self.setMinimumSize(400, 300)
+
+        # Set window style
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #000000;
+            }
+            QLineEdit {
+                background-color: #1a1a1a;
+                color: #00ff00;
+                border: 2px solid #00ff00;
+                border-radius: 5px;
+                padding: 5px;
+            }
+            QLabel {
+                color: #00ff00;
+            }
+            QPushButton {
+                background-color: #1a1a1a;
+                color: #00ff00;
+                border: 2px solid #00ff00;
+                border-radius: 5px;
+                padding: 5px;
+            }
+            QPushButton:hover {
+                background-color: #2a2a2a;
+            }
+        """)
+
+        # Create central widget and layout
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+
+        # Create key input
+        key_label = QLabel("Encryption Key:")
+        layout.addWidget(key_label)
+        
+        self.key_input = QLineEdit()
+        self.key_input.setPlaceholderText("Enter key...")
+        layout.addWidget(self.key_input)
+
+        # Create drop area
+        self.drop_area = DropArea()
+        layout.addWidget(self.drop_area)
 
 if __name__ == '__main__':
-    Timer(1, open_browser).start()
-    app.run(port=9999)
+    app = QApplication(sys.argv)
+    
+    # Set application-wide dark theme
+    app.setStyle('Fusion')
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 255, 0))
+    palette.setColor(QPalette.ColorRole.Base, QColor(25, 25, 25))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(53, 53, 53))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(0, 255, 0))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(0, 255, 0))
+    palette.setColor(QPalette.ColorRole.Text, QColor(0, 255, 0))
+    palette.setColor(QPalette.ColorRole.Button, QColor(53, 53, 53))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 255, 0))
+    palette.setColor(QPalette.ColorRole.BrightText, QColor(0, 255, 0))
+    palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
+    app.setPalette(palette)
+
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
