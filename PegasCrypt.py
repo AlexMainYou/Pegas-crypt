@@ -1,9 +1,9 @@
 import sys
 import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                            QLineEdit, QLabel, QPushButton)
-from PyQt6.QtCore import Qt, QMimeData
-from PyQt6.QtGui import QPalette, QColor, QDragEnterEvent, QDropEvent
+                            QLineEdit, QLabel, QPushButton, QProgressBar)
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPalette, QColor
 import random
 
 class DropArea(QWidget):
@@ -13,7 +13,7 @@ class DropArea(QWidget):
         self.setMinimumSize(300, 200)
         self.setStyleSheet("""
             QWidget {
-                background-color: #1a1a1a;
+                background-color: #00041a;
                 border: 2px dashed #00ff00;
                 border-radius: 5px;
             }
@@ -26,13 +26,13 @@ class DropArea(QWidget):
         layout.addWidget(self.label)
         self.setLayout(layout)
 
-    def dragEnterEvent(self, event: QDragEnterEvent):
+    def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.accept()
         else:
             event.ignore()
 
-    def dropEvent(self, event: QDropEvent):
+    def dropEvent(self, event):
         files = [url.toLocalFile() for url in event.mimeData().urls()]
         if files:
             self.process_file(files[0])
@@ -50,22 +50,43 @@ class DropArea(QWidget):
                 self.label.setText("Введите ключ!")
                 return
 
+            # Сохраняем оригинальное расширение
+            original_ext = os.path.splitext(file_path)[1]
+            # Записываем длину расширения и само расширение в начало файла
+            ext_length = len(original_ext)
+
             random.seed(seed)
             with open(file_path, 'rb') as f:
                 data = bytearray(f.read())
 
+            # Добавляем информацию о расширении в начало данных
+            ext_data = bytearray(f"{ext_length:02d}{original_ext}".encode())
+            data = ext_data + data
+
+            total_size = len(data)
+            self.window().progress_bar.setMaximum(total_size)
+
+            # Шифруем все данные, включая информацию о расширении
             for i in range(len(data)):
                 data[i] ^= random.randint(0, 255)
+                if i % 1000 == 0:
+                    self.window().progress_bar.setValue(i)
+                    QApplication.processEvents()
 
-            new_path = file_path + '.pegas'
+            # Создаем новый путь с расширением .pegas
+            new_path = os.path.splitext(file_path)[0] + '.pegas'
+            
             with open(new_path, 'wb') as f:
                 f.write(data)
 
             os.remove(file_path)
             self.label.setText("Файл зашифрован!")
+            self.window().progress_bar.setValue(total_size)
 
         except Exception as e:
             self.label.setText(f"Ошибка: {str(e)}")
+        finally:
+            self.window().progress_bar.setValue(0)
 
     def decrypt_file(self, file_path):
         try:
@@ -78,18 +99,37 @@ class DropArea(QWidget):
             with open(file_path, 'rb') as f:
                 data = bytearray(f.read())
 
+            total_size = len(data)
+            self.window().progress_bar.setMaximum(total_size)
+
+            # Расшифровываем все данные
             for i in range(len(data)):
                 data[i] ^= random.randint(0, 255)
+                if i % 1000 == 0:
+                    self.window().progress_bar.setValue(i)
+                    QApplication.processEvents()
 
-            new_path = file_path[:-6]  # Remove .pegas
+            # Получаем информацию о расширении
+            ext_length = int(data[:2].decode())
+            original_ext = data[2:2+ext_length].decode()
+            
+            # Удаляем информацию о расширении из данных
+            data = data[2+ext_length:]
+
+            # Создаем путь с оригинальным расширением
+            new_path = os.path.splitext(file_path)[0] + original_ext
+            
             with open(new_path, 'wb') as f:
                 f.write(data)
 
             os.remove(file_path)
             self.label.setText("Файл расшифрован!")
+            self.window().progress_bar.setValue(total_size)
 
         except Exception as e:
             self.label.setText(f"Ошибка: {str(e)}")
+        finally:
+            self.window().progress_bar.setValue(0)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -97,39 +137,46 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("PEGAS Encryptor")
         self.setMinimumSize(400, 300)
 
-        # Set window style
         self.setStyleSheet("""
-            QMainWindow {
-                background-color: #000000;
-            }
-            QLineEdit {
-                background-color: #1a1a1a;
-                color: #00ff00;
-                border: 2px solid #00ff00;
-                border-radius: 5px;
-                padding: 5px;
-            }
-            QLabel {
-                color: #00ff00;
-            }
-            QPushButton {
-                background-color: #1a1a1a;
-                color: #00ff00;
-                border: 2px solid #00ff00;
-                border-radius: 5px;
-                padding: 5px;
-            }
-            QPushButton:hover {
-                background-color: #2a2a2a;
-            }
-        """)
+    QMainWindow {
+        background-color: #1a212b;
+    }
+    QLineEdit {
+        background-color: #1a212b;
+        color: #00ff00;
+        border: 2px solid #00ff00;
+        border-radius: 5px;
+        padding: 5px;
+    }
+    QLabel {
+        color: #00ff00;
+    }
+    QPushButton {
+        background-color: #1a212b;
+        color: #00ff00;
+        border: 2px solid #00ff00;
+        border-radius: 5px;
+        padding: 5px;
+    }
+    QPushButton:hover {
+        background-color: #1a212b;
+    }
+    QProgressBar {
+        border: 2px solid #00ff00;
+        border-radius: 5px;
+        text-align: center;
+        color: #00ff00;
+    }
+    QProgressBar::chunk {
+        background-color: #00ff00;
+    }
+""")
 
-        # Create central widget and layout
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
-        # Create key input
         key_label = QLabel("Encryption Key:")
         layout.addWidget(key_label)
         
@@ -137,14 +184,17 @@ class MainWindow(QMainWindow):
         self.key_input.setPlaceholderText("Enter key...")
         layout.addWidget(self.key_input)
 
-        # Create drop area
         self.drop_area = DropArea()
         layout.addWidget(self.drop_area)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     
-    # Set application-wide dark theme
     app.setStyle('Fusion')
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
