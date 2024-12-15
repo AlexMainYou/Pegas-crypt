@@ -1,10 +1,13 @@
 import sys
 import os
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QLineEdit, QLabel, QPushButton, QProgressBar)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPalette, QColor
-import random
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.backends import default_backend
+import secrets
 
 class DropArea(QWidget):
     def __init__(self):
@@ -18,7 +21,7 @@ class DropArea(QWidget):
                 border-radius: 5px;
             }
         """)
-        
+
         layout = QVBoxLayout()
         self.label = QLabel("Перетащите файл сюда")
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -45,43 +48,56 @@ class DropArea(QWidget):
 
     def encrypt_file(self, file_path):
         try:
-            seed = self.window().key_input.text()
-            if not seed:
+            key_text = self.window().key_input.text()
+            if not key_text:
                 self.label.setText("Введите ключ!")
                 return
 
+            # Преобразуем ключ из текста в байты, используя первые 32 байта
+            key = key_text.encode('utf-8')[:32]
+            # Если ключ короче 32 байт, дополним его нулями
+            key = key.ljust(32, b'\0')
+
             # Сохраняем оригинальное расширение
             original_ext = os.path.splitext(file_path)[1]
-            # Записываем длину расширения и само расширение в начало файла
-            ext_length = len(original_ext)
 
-            random.seed(seed)
+            # Генерируем случайный вектор инициализации (IV)
+            iv = secrets.token_bytes(16)
+
+            # Создаем объект cipher
+            cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+            encryptor = cipher.encryptor()
+
+            # Используем PKCS7 паддинг
+            padder = padding.PKCS7(128).padder()
+
             with open(file_path, 'rb') as f:
-                data = bytearray(f.read())
+                data = f.read()
 
-            # Добавляем информацию о расширении в начало данных
-            ext_data = bytearray(f"{ext_length:02d}{original_ext}".encode())
-            data = ext_data + data
+            # Дополняем данные
+            padded_data = padder.update(data) + padder.finalize()
 
-            total_size = len(data)
-            self.window().progress_bar.setMaximum(total_size)
+            # Шифруем данные
+            encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
 
-            # Шифруем все данные, включая информацию о расширении
-            for i in range(len(data)):
-                data[i] ^= random.randint(0, 255)
-                if i % 1000 == 0:
-                    self.window().progress_bar.setValue(i)
-                    QApplication.processEvents()
+            # Записываем длину расширения, расширение и IV в начало файла
+            ext_length = len(original_ext)
+            header_data = bytearray(f"{ext_length:02d}{original_ext}".encode()) + iv
 
             # Создаем новый путь с расширением .pegas
             new_path = os.path.splitext(file_path)[0] + '.pegas'
-            
+
+            total_size = len(header_data) + len(encrypted_data)
+            self.window().progress_bar.setMaximum(total_size)
+
             with open(new_path, 'wb') as f:
-                f.write(data)
+                f.write(header_data)
+                self.window().progress_bar.setValue(len(header_data))
+                f.write(encrypted_data)
+                self.window().progress_bar.setValue(total_size)
 
             os.remove(file_path)
             self.label.setText("Файл зашифрован!")
-            self.window().progress_bar.setValue(total_size)
 
         except Exception as e:
             self.label.setText(f"Ошибка: {str(e)}")
@@ -90,47 +106,53 @@ class DropArea(QWidget):
 
     def decrypt_file(self, file_path):
         try:
-            seed = self.window().key_input.text()
-            if not seed:
+            key_text = self.window().key_input.text()
+            if not key_text:
                 self.label.setText("Введите ключ!")
                 return
-
-            random.seed(seed)
-            with open(file_path, 'rb') as f:
-                data = bytearray(f.read())
-
-            total_size = len(data)
-            self.window().progress_bar.setMaximum(total_size)
-
-            # Расшифровываем все данные
-            for i in range(len(data)):
-                data[i] ^= random.randint(0, 255)
-                if i % 1000 == 0:
-                    self.window().progress_bar.setValue(i)
-                    QApplication.processEvents()
-
-            # Получаем информацию о расширении
-            ext_length = int(data[:2].decode())
-            original_ext = data[2:2+ext_length].decode()
             
-            # Удаляем информацию о расширении из данных
-            data = data[2+ext_length:]
+            # Преобразуем ключ из текста в байты, используя первые 32 байта
+            key = key_text.encode('utf-8')[:32]
+            # Если ключ короче 32 байт, дополним его нулями
+            key = key.ljust(32, b'\0')
+
+            with open(file_path, 'rb') as f:
+                # Читаем заголовок (длина расширения, расширение и IV)
+                ext_length = int(f.read(2).decode())
+                original_ext = f.read(ext_length).decode()
+                iv = f.read(16)
+
+                # Оставшиеся данные - зашифрованные данные
+                encrypted_data = f.read()
+
+            # Создаем объект cipher
+            cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+            decryptor = cipher.decryptor()
+
+            # Расшифровываем данные
+            decrypted_padded_data = decryptor.update(encrypted_data) + decryptor.finalize()
+
+            # Удаляем паддинг
+            unpadder = padding.PKCS7(128).unpadder()
+            decrypted_data = unpadder.update(decrypted_padded_data) + unpadder.finalize()
 
             # Создаем путь с оригинальным расширением
             new_path = os.path.splitext(file_path)[0] + original_ext
-            
+
+            total_size = len(encrypted_data)
+            self.window().progress_bar.setMaximum(total_size)
+
             with open(new_path, 'wb') as f:
-                f.write(data)
+                f.write(decrypted_data)
+                self.window().progress_bar.setValue(total_size)
 
             os.remove(file_path)
             self.label.setText("Файл расшифрован!")
-            self.window().progress_bar.setValue(total_size)
 
         except Exception as e:
             self.label.setText(f"Ошибка: {str(e)}")
         finally:
             self.window().progress_bar.setValue(0)
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -172,7 +194,6 @@ class MainWindow(QMainWindow):
     }
 """)
 
-
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
@@ -181,7 +202,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(key_label)
         
         self.key_input = QLineEdit()
-        self.key_input.setPlaceholderText("Enter key...")
+        self.key_input.setPlaceholderText("Enter key (up to 32 characters)...")
         layout.addWidget(self.key_input)
 
         self.drop_area = DropArea()
