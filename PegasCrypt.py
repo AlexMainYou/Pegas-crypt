@@ -53,8 +53,8 @@ class CustomPasswordDialog(tk.Toplevel):
         main_frame.pack(expand=True, fill=tk.BOTH, padx=5, pady=5)
 
         tk.Label(main_frame, text=prompt, bg=BG_COLOR, fg=FG_COLOR, font=(FONT_FAMILY, 12)).pack(pady=(20, 5))
-        
-        self.password_entry = tk.Entry(main_frame, show="*", bg=ACCENT_BG, fg=FG_COLOR, 
+
+        self.password_entry = tk.Entry(main_frame, show="*", bg=ACCENT_BG, fg=FG_COLOR,
                                        insertbackground=FG_COLOR, font=(FONT_FAMILY, 12), relief=tk.FLAT, width=25)
         self.password_entry.pack(pady=5)
         self.password_entry.focus_set()
@@ -63,7 +63,7 @@ class CustomPasswordDialog(tk.Toplevel):
         button_frame.pack(pady=10)
 
         ok_button = HoverButton(button_frame, text="[ OK ]", command=self.on_ok,
-                                bg=ACCENT_BG, fg=FG_COLOR, activebackground=ACTIVE_BG, 
+                                bg=ACCENT_BG, fg=FG_COLOR, activebackground=ACTIVE_BG,
                                 activeforeground=FG_COLOR, relief=tk.FLAT, bd=0, font=(FONT_FAMILY, 10))
         ok_button.pack(side=tk.LEFT, padx=10)
 
@@ -109,11 +109,11 @@ class CryptoTerminalApp:
         self.animate_text(self.status_label, "Готов к работе. Перетащите файл...", 0)
 
     def _setup_styles(self):
-        self.master.title("PegasCrypt V6.0")
-        self.master.geometry("600x500")
+        self.master.title("PegasCrypt V7.0")
+        self.master.geometry("600x600") # << ИЗМЕНЕНО: высота увеличена на 50px
         self.master.configure(bg=BG_COLOR)
         self.master.minsize(500, 400)
-        
+
         style = ttk.Style()
         style.theme_use('default')
         style.configure('TRadiobutton', background=BG_COLOR, foreground=FG_COLOR, font=(FONT_FAMILY, 10),
@@ -125,13 +125,13 @@ class CryptoTerminalApp:
     def _create_widgets(self):
         scanlines = Scanlines(self.master, bg=BG_COLOR, highlightthickness=0)
         scanlines.place(relx=0, rely=0, relwidth=1, relheight=1)
-        
+
         top_frame = tk.Frame(self.master, bg=BG_COLOR)
         top_frame.pack(fill=tk.X, padx=20, pady=10)
 
         self.extension_label = tk.Label(top_frame, text="Расширение:", bg=BG_COLOR, fg=FG_COLOR, font=(FONT_FAMILY, 10))
         self.extension_label.pack(side=tk.LEFT, padx=(0, 10))
-        
+
         self.extension_var = tk.StringVar(value=".Pegas") # Изменено по умолчанию
         self.pegas_radio = ttk.Radiobutton(top_frame, text=".Pegas", variable=self.extension_var, value=".Pegas")
         self.pegas_radio.pack(side=tk.LEFT, padx=10)
@@ -140,8 +140,8 @@ class CryptoTerminalApp:
 
         drop_frame = tk.Frame(self.master, bg=ACCENT_BG, relief=tk.SOLID, bd=1)
         drop_frame.pack(expand=True, fill=tk.BOTH, padx=20, pady=10)
-        
-        self.preview_text = tk.Text(drop_frame, bg=ACCENT_BG, fg=FG_COLOR, font=(FONT_FAMILY, 10), 
+
+        self.preview_text = tk.Text(drop_frame, bg=ACCENT_BG, fg=FG_COLOR, font=(FONT_FAMILY, 10),
                                     relief=tk.FLAT, bd=0, wrap=tk.WORD, insertbackground=FG_COLOR)
         self.preview_text.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
         self.preview_text.insert(tk.END, "Перетащите файл сюда для анализа...")
@@ -164,7 +164,7 @@ class CryptoTerminalApp:
 
         self.status_label = tk.Label(self.master, text="", fg=FG_COLOR, bg=BG_COLOR, font=(FONT_FAMILY, 10))
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=5)
-    
+
     def animate_text(self, widget, text, index):
         if index <= len(text):
             widget.config(text=text[:index] + "_")
@@ -204,13 +204,13 @@ class CryptoTerminalApp:
         try:
             filename = os.path.basename(self.current_file_path)
             filesize = os.path.getsize(self.current_file_path)
-            
+
             header = f"Файл: {filename}\nРазмер: {filesize} байт\nРежим: Шифрование\n"
             header += "-" * 40 + "\n\n"
-            
+
             with open(self.current_file_path, 'rb') as f:
                 preview_data = f.read(PREVIEW_SIZE)
-            
+
             try:
                 text_preview = preview_data.decode('utf-8', errors='ignore')
                 content = "Содержимое (начало):\n\n" + text_preview
@@ -270,7 +270,7 @@ class CryptoTerminalApp:
         try:
             with open(self.current_file_path, 'rb') as f:
                 data = f.read()
-            
+
             # Новый формат: [salt][iv][tag][len_fname][fname][ciphertext]
             salt = data[0:16]
             iv = data[16:28]
@@ -279,7 +279,7 @@ class CryptoTerminalApp:
             filename_bytes = data[46:46+filename_len]
             ciphertext = data[46+filename_len:]
             original_filename = filename_bytes.decode('utf-8')
-            
+
             key = self.derive_key(password, salt)
             decryptor = Cipher(algorithms.AES(key), modes.GCM(iv, tag), backend=default_backend()).decryptor()
             plaintext = decryptor.update(ciphertext) + decryptor.finalize()
@@ -289,7 +289,7 @@ class CryptoTerminalApp:
 
     def encrypt_file(self):
         if not self.current_file_path: return
-        
+
         password = self.get_password("Пароль для шифрования:")
         if not password: return
 
@@ -300,13 +300,13 @@ class CryptoTerminalApp:
             salt = secrets.token_bytes(16)
             key = self.derive_key(password, salt)
             iv = secrets.token_bytes(12)
-            
+
             original_filename_bytes = os.path.basename(self.current_file_path).encode('utf-8')
             filename_len_bytes = len(original_filename_bytes).to_bytes(2, 'big')
 
             encryptor = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend()).encryptor()
             ciphertext = encryptor.update(plaintext) + encryptor.finalize()
-            
+
             encrypted_data = salt + iv + encryptor.tag + filename_len_bytes + original_filename_bytes + ciphertext
 
             extension = self.extension_var.get()
@@ -342,7 +342,7 @@ class CryptoTerminalApp:
             filename_len = int.from_bytes(data[44:46], 'big')
             filename_bytes = data[46:46+filename_len]
             ciphertext = data[46+filename_len:]
-            
+
             original_filename = filename_bytes.decode('utf-8')
 
             key = self.derive_key(password, salt)
