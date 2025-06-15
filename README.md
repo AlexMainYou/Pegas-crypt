@@ -6,7 +6,8 @@
 
 A stylish, secure, and simple drag-and-drop encryption tool with a retro terminal aesthetic. PegasCrypt allows you to easily encrypt and decrypt individual files or entire folders using strong, industry-standard cryptographic algorithms.
 
-![PegasCrypt Screenshot](assets/screenshot.png)
+## last version
+![python_hRg8QVp0bW](https://github.com/user-attachments/assets/613e57c6-07d6-4f27-94a1-cf1f2493d7fb)
 
 ## 🌟 Features
 
@@ -17,9 +18,6 @@ A stylish, secure, and simple drag-and-drop encryption tool with a retro termina
 *   **Live Previews:** Safely preview encrypted file content or metadata before committing to a full decryption.
 *   **Multi-Language Support:** Instantly switch between English and Russian interfaces with a single click.
 *   **Retro Aesthetic:** Features a cool, hacker-style terminal theme with scanlines and a "Courier" font.
-
-### last version
-![python_hRg8QVp0bW](https://github.com/user-attachments/assets/613e57c6-07d6-4f27-94a1-cf1f2493d7fb)
 
 ## ⚙️ Installation
 
