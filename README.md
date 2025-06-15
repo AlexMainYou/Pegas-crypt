@@ -18,6 +18,9 @@ A stylish, secure, and simple drag-and-drop encryption tool with a retro termina
 *   **Multi-Language Support:** Instantly switch between English and Russian interfaces with a single click.
 *   **Retro Aesthetic:** Features a cool, hacker-style terminal theme with scanlines and a "Courier" font.
 
+### last version
+![python_hRg8QVp0bW](https://github.com/user-attachments/assets/613e57c6-07d6-4f27-94a1-cf1f2493d7fb)
+
 ## ⚙️ Installation
 
 To run PegasCrypt, you need Python 3 and a few dependencies.
@@ -90,6 +93,10 @@ Security is the top priority for PegasCrypt.
 *   **Encryption Algorithm:** **AES-256 in GCM Mode**. GCM (Galois/Counter Mode) is an authenticated encryption mode. This not only keeps your data secret but also provides integrity checks, meaning the application can detect if an encrypted file has been tampered with.
 *   **Key Derivation Function:** **PBKDF2 with HMAC-SHA256**. Your password is never used directly as the encryption key. Instead, it's put through 100,000 rounds of hashing via PBKDF2. This makes brute-force and dictionary attacks on your password extremely slow and computationally expensive.
 *   **Salt:** A unique, cryptographically secure 16-byte salt is generated for every single encryption operation. This ensures that even if you encrypt two identical files with the same password, the resulting encrypted files will be completely different.
+
+### PyQt5 version
+![PegaCryptV6Qt_RoM8IOPbIV](https://github.com/user-attachments/assets/c82a06f2-81ed-4ce2-8433-378e12477732)
+
 
 ## 📄 License
 
